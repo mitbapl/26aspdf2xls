@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from .utils import process_pdf_to_excel
@@ -38,9 +39,6 @@ async def head_home():
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
-    """
-    Handle PDF upload and convert to Excel.
-    """
     if not file.filename.endswith(".pdf"):
         return {"error": "Only PDF files are allowed."}
 
@@ -53,7 +51,8 @@ async def upload_file(file: UploadFile):
 
     process_pdf_to_excel(file_path, output_excel)
 
-    return {"download_url": f"/download/{output_filename}"}
+    return RedirectResponse(url=f"/download/{output_filename}", status_code=303)
+
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
