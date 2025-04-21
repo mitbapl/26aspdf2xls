@@ -52,6 +52,7 @@ async def download_file(filename: str):
     Serve the generated Excel file.
     """
     file_path = OUTPUT_FOLDER / filename
+    print(file_path)
     if file_path.exists():
         return FileResponse(file_path, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     return {"error": "File not found"}
