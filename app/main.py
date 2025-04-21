@@ -1,5 +1,7 @@
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from utils import process_pdf_to_excel
 import os
 
@@ -10,6 +12,14 @@ OUTPUT_FOLDER = "output_files"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+# Mount static and template directories
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    return templates.TemplateResponse("index.html", {"request": {}})
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
