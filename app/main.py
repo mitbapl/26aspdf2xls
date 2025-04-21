@@ -51,13 +51,23 @@ async def upload_file(file: UploadFile):
     output_filename = f"{file.filename.rsplit('.', 1)[0]}.xlsx"
     output_excel = OUTPUT_FOLDER / output_filename
 
-    print(f"Processing {file_path} and saving to {output_excel}")
-    process_pdf_to_excel(file_path, output_excel)
+    # Log file paths for debugging
+    print(f"Uploaded PDF path: {file_path}")
+    print(f"Output Excel path: {output_excel}")
+
+    try:
+        print(f"Processing {file_path} and saving to {output_excel}")
+        process_pdf_to_excel(file_path, output_excel)
+    except Exception as e:
+        print(f"Error during file processing: {e}")
+        return JSONResponse(content={"error": f"File generation failed: {str(e)}"}, status_code=500)
 
     # Confirm file was created
     if output_excel.exists():
+        print(f"File successfully created at: {output_excel}")
         return RedirectResponse(url=f"/download/{output_filename}", status_code=303)
     else:
+        print("File was not created.")
         return JSONResponse(content={"error": "File generation failed"}, status_code=500)
 
 @app.get("/download/{filename}")
