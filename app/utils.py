@@ -1,87 +1,53 @@
 import re
-import pandas as pd
-from PyPDF2 import PdfReader
 import os
+from PyPDF2 import PdfReader
+import pandas as pd
 
-def extract_tds_data_from_pdf(pdf_path):
+def extract_tds_entries_from_pdf(pdf_path):
     """
-    Extract TDS data from a PDF file.
+    Extracts TDS Part-I entries from 26AS PDF.
     """
-    print(f"Extracting TDS data from PDF: {pdf_path}")
+    reader = PdfReader(pdf_path)
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
 
-    try:
-        reader = PdfReader(pdf_path)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() or ""
+    # Pattern to match deductor level summary
+    deductor_block = re.findall(
+        r"Name of Deductor\s+(.*?)\s+TAN of Deductor\s+([A-Z]{4}\d{5}[A-Z])\s+Total Amount Paid/[\s\S]+?(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)",
+        text
+    )
 
-        if not text.strip():
-            raise ValueError("No text extracted from the PDF.")
+    # Pattern to match transaction level detail
+    transaction_block = re.findall(
+        r"(\d{3}[A-Z]?)\s+(\d{2}-[A-Za-z]{3}-\d{4})\s+[FMUPZ]\s+\d{2}-[A-Za-z]{3}-\d{4}\s+-?\s+([\d\.\-]+)\s+([\d\.\-]+)\s+([\d\.\-]+)",
+        text
+    )
 
-        # Print extracted text for debugging
-        print("Extracted Text (first 500 characters):")
-        print(text[:500])
+    records = []
+    for i, (deductor, tan, amt, tds, deposited) in enumerate(deductor_block):
+        # Map corresponding transaction(s)
+        # Matching by order; ensure lists align
+        if i < len(transaction_block):
+            sec, date, tr_amt, tr_tds, tr_dep = transaction_block[i]
+            records.append({
+                "Deductor": deductor.strip(),
+                "TAN": tan.strip(),
+                "Section": sec.strip(),
+                "Transaction Date": date.strip(),
+                "Amount Paid": float(tr_amt),
+                "TDS Deducted": float(tr_tds),
+                "TDS Deposited": float(tr_dep)
+            })
+    return records
 
-        # Regex pattern to extract TDS details
-        tds_pattern = re.compile(
-            r"(?P<deductor>[A-Z\s]+)\s+(?P<tan>MUM[A-Z0-9]+)\s+(?P<amount_paid>\d+\.\d+)\s+(?P<tds_deducted>\d+\.\d+)"
-        )
-        matches = tds_pattern.findall(text)
-
-        if not matches:
-            raise ValueError("No TDS data found in the PDF. Please check the data format.")
-
-        # Parse matched data into a list of dictionaries
-        data = [
-            {
-                "Deductor": match[0].strip(),
-                "TAN": match[1].strip(),
-                "Amount Paid": float(match[2]),
-                "TDS Deducted": float(match[3]),
-            }
-            for match in matches
-        ]
-
-        return data
-
-    except Exception as e:
-        print(f"Error extracting TDS data: {str(e)}")
-        raise
-
-def process_pdf_to_excel(pdf_path, output_excel):
+def convert_to_excel(records, output_excel_path):
     """
-    Process a PDF file and export TDS data to an Excel file.
+    Saves extracted TDS records to Excel.
     """
-    print(f"Generating Excel file at: {output_excel}")
-    print(f"Processing {pdf_path} and saving to {output_excel}")
+    df = pd.DataFrame(records)
+    os.makedirs(os.path.dirname(output_excel_path), exist_ok=True)
+    df.to_excel(output_excel_path, index=False)
+    print(f"Excel file saved: {output_excel_path}")
 
-    try:
-        # Extract TDS data
-        data = extract_tds_data_from_pdf(pdf_path)
-        if not data:
-            print("No data extracted. Excel file will not be generated.")
-            return
-
-        # Convert data to a DataFrame
-        df = pd.DataFrame(data)
-        print("Extracted DataFrame:")
-        print(df)
-
-        # Create output directory if it doesn't exist
-        output_dir = os.path.dirname(output_excel)
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Write data to Excel
-        with pd.ExcelWriter(output_excel, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False, sheet_name="TDS Details")
-
-            # Add a total row
-            worksheet = writer.sheets["TDS Details"]
-            worksheet.write(len(df), 0, "Total")
-            worksheet.write(len(df), 3, df["TDS Deducted"].sum())
-
-        print(f"Excel file successfully generated at: {output_excel}")
-
-    except Exception as e:
-        print(f"Error during PDF to Excel conversion: {str(e)}")
-        raise
+def process_pdf_to_excel(pdf_path, output_excel_path):
+    records = extract_tds_entries_from_pdf(pdf_path)
+    convert_to_excel(records, output_excel_path)
