@@ -1,7 +1,7 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from utils import process_pdf_to_excel
+from .utils import process_pdf_to_excel
 import os
 
 app = FastAPI()
