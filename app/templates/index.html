@@ -32,5 +32,16 @@
         <br />
         <button type="submit">Upload & Download</button>
     </form>
+
+    <script>
+        // Auto-download trigger if redirected with success and filename
+        const urlParams = new URLSearchParams(window.location.search);
+        const success = urlParams.get("success");
+        const filename = urlParams.get("filename");
+
+        if (success === "1" && filename) {
+            window.location.href = `/download/${filename}`;
+        }
+    </script>
 </body>
 </html>
