@@ -1,9 +1,7 @@
 .
 ├── app
 │   ├── main.py           # FastAPI application code
+│   ├── utils.py          # Helper functions for PDF processing
 │   ├── requirements.txt  # Python dependencies
-│   ├── Dockerfile        # Dockerfile for containerization
-│   └── utils.py          # Helper functions for PDF processing
-├── .dockerignore
-├── .gitignore
-└── README.md
+│   └── templates         # Directory for HTML templates
+│       └── index.html    # HTML file for the frontend
