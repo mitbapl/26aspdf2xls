@@ -5,42 +5,47 @@ from PyPDF2 import PdfReader
 
 def extract_tds_entries_from_pdf(pdf_path):
     reader = PdfReader(str(pdf_path))
-    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    text = "\n".join([page.extract_text() or "" for page in reader.pages])
     lines = text.splitlines()
 
     entries = []
-    current_deductor = ""
-    current_tan = ""
+    current_deductor = None
+    current_tan = None
 
     for i in range(len(lines)):
-        # Match Deductor and TAN block
-        if re.search(r"TAN of Deductor", lines[i]):
-            # Find the line before that contains deductor name
-            current_deductor = lines[i - 1].strip()
-            tan_match = re.search(r'([A-Z]{4}\d{5}[A-Z])', lines[i])
-            current_tan = tan_match.group(1) if tan_match else ""
+        line = lines[i].strip()
 
-        # Match transaction line
+        # Detect deductor block
+        if line.isupper() and "LIMITED" in line or "PRIVATE" in line or "BANK" in line:
+            if i + 1 < len(lines) and "TAN of Deductor" in lines[i + 1]:
+                current_deductor = line.strip()
+                tan_match = re.search(r'([A-Z]{4}\d{5}[A-Z])', lines[i + 1])
+                current_tan = tan_match.group(1) if tan_match else None
+
+        # Detect transaction line
         txn_match = re.match(
-            r'^(1[9][0-9][A-Z]?)\s+(\d{2}-[A-Za-z]{3}-\d{4})\s+[FMUPZ]\s+\d{2}-[A-Za-z]{3}-\d{4}\s+-?\s+(-?[\d,]+\.\d+)\s+(-?[\d,]+\.\d+)\s+(-?[\d,]+\.\d+)',
-            lines[i]
+            r"^(1[9][0-9][A-Z]?)\s+(\d{2}-[A-Za-z]{3}-\d{4})\s+[FMUPZ]\s+\d{2}-[A-Za-z]{3}-\d{4}\s+-?\s*(-?[\d,]+\.\d+)\s+(-?[\d,]+\.\d+)\s+(-?[\d,]+\.\d+)",
+            line
         )
-        if txn_match:
-            section = txn_match.group(1)
-            date = txn_match.group(2)
-            amount = float(txn_match.group(3).replace(',', ''))
-            tds = float(txn_match.group(4).replace(',', ''))
-            deposited = float(txn_match.group(5).replace(',', ''))
+        if txn_match and current_deductor and current_tan:
+            try:
+                section = txn_match.group(1)
+                txn_date = txn_match.group(2)
+                amount = float(txn_match.group(3).replace(',', ''))
+                tds_deducted = float(txn_match.group(4).replace(',', ''))
+                tds_deposited = float(txn_match.group(5).replace(',', ''))
 
-            entries.append({
-                "Deductor": current_deductor,
-                "TAN": current_tan,
-                "Section": section,
-                "Transaction Date": date,
-                "Amount Paid": amount,
-                "TDS Deducted": tds,
-                "TDS Deposited": deposited
-            })
+                entries.append({
+                    "Deductor": current_deductor,
+                    "TAN": current_tan,
+                    "Section": section,
+                    "Transaction Date": txn_date,
+                    "Amount Paid": amount,
+                    "TDS Deducted": tds_deducted,
+                    "TDS Deposited": tds_deposited
+                })
+            except ValueError:
+                continue
 
     return entries
 
