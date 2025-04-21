@@ -6,48 +6,52 @@ from PyPDF2 import PdfReader
 def extract_tds_entries_from_pdf(pdf_path):
     reader = PdfReader(str(pdf_path))
     text = "\n".join([page.extract_text() or "" for page in reader.pages])
-    lines = text.splitlines()
 
-    entries = []
+    # 1. Extract Deductor Blocks
+    deductor_pattern = re.compile(
+        r"(?P<deductor>[A-Z0-9\s\.\-&()]+?)\s+(?P<tan>[A-Z]{4}\d{5}[A-Z])\s+(?P<amount_paid>-?\d[\d,]*\.\d{2})\s+(?P<tds_deducted>-?\d[\d,]*\.\d{2})\s+(?P<tds_deposited>-?\d[\d,]*\.\d{2})"
+    )
+    deductors = deductor_pattern.findall(text)
+
+    # 2. Extract Transaction Rows (need to assign to the most recent deductor)
+    txn_pattern = re.compile(
+        r"(?P<section>194[A-Z]*)\s+(?P<date>\d{2}-[A-Za-z]{3}-\d{4})\s+[FMPUGZ]\s+\d{2}-[A-Za-z]{3}-\d{4}\s+-?\s*(?P<amount>-?\d[\d,]*\.\d{2})\s+(?P<tds>-?\d[\d,]*\.\d{2})\s+(?P<deposited>-?\d[\d,]*\.\d{2})"
+    )
+    transactions = txn_pattern.findall(text)
+
+    # 3. Stitch Together
+    results = []
     current_deductor = None
     current_tan = None
 
+    # Walk through lines to align deductors + transactions properly
+    lines = text.splitlines()
     for i in range(len(lines)):
-        line = lines[i].strip()
+        # Match deductor block in-line
+        match = deductor_pattern.match(lines[i])
+        if match:
+            current_deductor = match.group('deductor').strip()
+            current_tan = match.group('tan').strip()
+            continue
 
-        # Detect deductor block
-        if line.isupper() and "LIMITED" in line or "PRIVATE" in line or "BANK" in line:
-            if i + 1 < len(lines) and "TAN of Deductor" in lines[i + 1]:
-                current_deductor = line.strip()
-                tan_match = re.search(r'([A-Z]{4}\d{5}[A-Z])', lines[i + 1])
-                current_tan = tan_match.group(1) if tan_match else None
-
-        # Detect transaction line
-        txn_match = re.match(
-            r"^(1[9][0-9][A-Z]?)\s+(\d{2}-[A-Za-z]{3}-\d{4})\s+[FMUPZ]\s+\d{2}-[A-Za-z]{3}-\d{4}\s+-?\s*(-?[\d,]+\.\d+)\s+(-?[\d,]+\.\d+)\s+(-?[\d,]+\.\d+)",
-            line
-        )
+        # Match transaction lines
+        txn_match = txn_pattern.match(lines[i])
         if txn_match and current_deductor and current_tan:
             try:
-                section = txn_match.group(1)
-                txn_date = txn_match.group(2)
-                amount = float(txn_match.group(3).replace(',', ''))
-                tds_deducted = float(txn_match.group(4).replace(',', ''))
-                tds_deposited = float(txn_match.group(5).replace(',', ''))
-
-                entries.append({
+                results.append({
                     "Deductor": current_deductor,
                     "TAN": current_tan,
-                    "Section": section,
-                    "Transaction Date": txn_date,
-                    "Amount Paid": amount,
-                    "TDS Deducted": tds_deducted,
-                    "TDS Deposited": tds_deposited
+                    "Section": txn_match.group('section'),
+                    "Transaction Date": txn_match.group('date'),
+                    "Amount Paid": float(txn_match.group('amount').replace(',', '')),
+                    "TDS Deducted": float(txn_match.group('tds').replace(',', '')),
+                    "TDS Deposited": float(txn_match.group('deposited').replace(',', '')),
                 })
-            except ValueError:
+            except Exception as e:
+                print(f"Skipping row due to error: {e}")
                 continue
 
-    return entries
+    return results
 
 def convert_to_excel(records, output_excel_path):
     df = pd.DataFrame(records)
