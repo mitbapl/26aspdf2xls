@@ -67,9 +67,14 @@ async def download_file(filename: str):
             "Expires": "0",
         }
         return FileResponse(
-            path=file_path,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename=filename,
-            headers=headers
-        )
+    path=file_path,
+    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    filename=filename,
+    headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+)
+
     return {"error": "File not found"}
