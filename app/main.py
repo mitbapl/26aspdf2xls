@@ -32,7 +32,9 @@ async def upload_file(file: UploadFile):
         f.write(await file.read())
 
     # Process PDF and generate Excel
-    output_excel = os.path.join(OUTPUT_FOLDER, f"{file.filename}.xlsx")
+    # output_excel = os.path.join(OUTPUT_FOLDER, f"{file.filename}.xlsx")
+    output_excel = os.path.join(OUTPUT_FOLDER, f"{os.path.splitext(file.filename)[0]}.xlsx")
+
     process_pdf_to_excel(file_path, output_excel)
 
     return {"download_url": f"/download/{os.path.basename(output_excel)}"}
