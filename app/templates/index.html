@@ -65,50 +65,53 @@
     </div>
 
     <script>
-        const form = document.getElementById("uploadForm");
-        const fileInput = document.getElementById("fileInput");
-        const status = document.getElementById("status");
-        const downloadLink = document.getElementById("downloadLink");
-        const link = document.getElementById("link");
+    const form = document.getElementById("uploadForm");
+    const fileInput = document.getElementById("fileInput");
+    const status = document.getElementById("status");
 
-        form.addEventListener("submit", async (e) => {
-            e.preventDefault();
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-            const file = fileInput.files[0];
-            if (!file) {
-                status.textContent = "Please select a PDF file.";
-                status.style.color = "red";
-                return;
+        const file = fileInput.files[0];
+        if (!file) {
+            status.textContent = "Please select a PDF file.";
+            status.style.color = "red";
+            return;
+        }
+
+        status.textContent = "Uploading and processing...";
+        status.style.color = "black";
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const response = await fetch("/upload/", {
+                method: "POST",
+                body: formData
+            });
+            const data = await response.json();
+
+            if (data.download_url) {
+                status.textContent = "Download starting...";
+                status.style.color = "green";
+
+                // Create a temporary anchor to trigger the download
+                const tempLink = document.createElement("a");
+                tempLink.href = data.download_url;
+                tempLink.download = ""; // let the server filename be used
+                document.body.appendChild(tempLink);
+                tempLink.click();
+                document.body.removeChild(tempLink);
+            } else {
+                throw new Error(data.error || "Unknown error occurred.");
             }
+        } catch (err) {
+            status.textContent = "Error: " + err.message;
+            status.style.color = "red";
+        }
+    });
+</script>
 
-            status.textContent = "Uploading and processing...";
-            status.style.color = "black";
-            downloadLink.style.display = "none";
-
-            const formData = new FormData();
-            formData.append("file", file);
-
-            try {
-                const response = await fetch("/upload/", {
-                    method: "POST",
-                    body: formData
-                });
-                const data = await response.json();
-
-                if (data.download_url) {
-                    status.textContent = "Excel file generated successfully!";
-                    status.style.color = "green";
-                    link.href = data.download_url;
-                    link.textContent = "Download " + data.download_url.split('/').pop();
-                    downloadLink.style.display = "block";
-                } else {
-                    throw new Error(data.error || "Unknown error occurred.");
-                }
-            } catch (err) {
-                status.textContent = "Error: " + err.message;
-                status.style.color = "red";
-            }
-        });
-    </script>
 </body>
 </html>
