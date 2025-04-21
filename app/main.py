@@ -1,6 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from .utils import process_pdf_to_excel
@@ -33,14 +32,17 @@ async def home(request: Request, success: str = "", filename: str = ""):
 @app.head("/")
 async def head_home():
     """
-    Handle HEAD request to root and return 200 OK
+    Handle HEAD request to root.
     """
     return HTMLResponse(status_code=200)
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
+    """
+    Receive PDF, process, and redirect to download.
+    """
     if not file.filename.endswith(".pdf"):
-        return {"error": "Only PDF files are allowed."}
+        return JSONResponse(content={"error": "Only PDF files are allowed."}, status_code=400)
 
     file_path = UPLOAD_FOLDER / file.filename
     with file_path.open("wb") as f:
@@ -49,10 +51,14 @@ async def upload_file(file: UploadFile):
     output_filename = f"{file.filename.rsplit('.', 1)[0]}.xlsx"
     output_excel = OUTPUT_FOLDER / output_filename
 
+    print(f"Processing {file_path} and saving to {output_excel}")
     process_pdf_to_excel(file_path, output_excel)
 
-    return RedirectResponse(url=f"/download/{output_filename}", status_code=303)
-
+    # Confirm file was created
+    if output_excel.exists():
+        return RedirectResponse(url=f"/download/{output_filename}", status_code=303)
+    else:
+        return JSONResponse(content={"error": "File generation failed"}, status_code=500)
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
@@ -60,21 +66,19 @@ async def download_file(filename: str):
     Serve the generated Excel file.
     """
     file_path = OUTPUT_FOLDER / filename
-    if file_path.exists():
-        headers = {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
+    print(f"Looking for file: {file_path}")
+    
+    if file_path.is_file():
         return FileResponse(
-    path=file_path,
-    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    filename=filename,
-    headers={
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0",
-    }
-)
-
-    return {"error": "File not found"}
+            path=str(file_path),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename=filename,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            }
+        )
+    else:
+        print("File not found.")
+        return JSONResponse(content={"error": "File not found"}, status_code=404)
