@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload 26AS PDF</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+        button {
+            background-color: #007BFF;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload 26AS PDF</h1>
+        <form id="uploadForm">
+            <input type="file" id="fileInput" accept=".pdf" required />
+            <button type="submit">Upload</button>
+        </form>
+        <div id="downloadLink" style="margin-top: 20px; display: none;">
+            <a href="#" id="link">Download Processed Excel</a>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById("uploadForm");
+        const fileInput = document.getElementById("fileInput");
+        const downloadLink = document.getElementById("downloadLink");
+        const link = document.getElementById("link");
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const file = fileInput.files[0];
+            if (!file) return alert("Please select a file!");
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const response = await fetch("/upload/", {
+                method: "POST",
+                body: formData,
+            });
+
+            const data = await response.json();
+            if (data.download_url) {
+                link.href = data.download_url;
+                downloadLink.style.display = "block";
+            } else {
+                alert("Error processing the file.");
+            }
+        });
+    </script>
+</body>
+</html>
