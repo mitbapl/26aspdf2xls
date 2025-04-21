@@ -3,14 +3,19 @@ import pandas as pd
 from PyPDF2 import PdfReader
 
 def extract_tds_data_from_pdf(pdf_path):
+    """
+    Extract TDS data from a PDF file.
+    """
     reader = PdfReader(pdf_path)
     text = ""
     for page in reader.pages:
         text += page.extract_text()
 
+    # Regex pattern to extract relevant data
     tds_pattern = re.compile(r"(?P<deductor>.+?)\s+(?P<tan>MUM[A-Z0-9]+)\s+(?P<amount_paid>\d+\.\d+)\s+(?P<tds_deducted>\d+\.\d+)")
     matches = tds_pattern.findall(text)
 
+    # Parse matched data into a list of dictionaries
     data = []
     for match in matches:
         data.append({
@@ -22,15 +27,19 @@ def extract_tds_data_from_pdf(pdf_path):
     return data
 
 def process_pdf_to_excel(pdf_path, output_excel):
+    """
+    Process a PDF file and export TDS data to an Excel file.
+    """
     data = extract_tds_data_from_pdf(pdf_path)
     if not data:
         return
 
+    # Convert data to a DataFrame
     df = pd.DataFrame(data)
     df["Sub Total"] = df["TDS Deducted"].sum()
 
-    # Save to Excel
-    writer = pd.ExcelWriter(output_excel, engine='xlsxwriter')
+    # Write data to Excel
+    writer = pd.ExcelWriter(output_excel, engine="xlsxwriter")
     df.to_excel(writer, index=False, sheet_name="TDS Details")
 
     # Add a total row
