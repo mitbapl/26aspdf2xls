@@ -28,7 +28,7 @@ def extract_tds_data_from_pdf(pdf_path):
 
 def process_pdf_to_excel(pdf_path, output_excel):
     print(f"Generating Excel file at: {output_excel}")
-    # Rest of the code...
+    print(f"Processing {pdf_path} and saving to {output_excel}")
 
     """
     Process a PDF file and export TDS data to an Excel file.
