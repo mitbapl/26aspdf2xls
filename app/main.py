@@ -1,14 +1,13 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, File, UploadFile, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from .utils import process_pdf_to_excel
 import os
 
-# Initialize FastAPI app
 app = FastAPI()
 
-# Set directories for uploads and outputs
+# Set directories
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_FOLDER = BASE_DIR / "uploaded_files"
 OUTPUT_FOLDER = BASE_DIR / "output_files"
@@ -18,33 +17,37 @@ TEMPLATES_FOLDER = BASE_DIR / "templates"
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
-# Set up templates
 templates = Jinja2Templates(directory=TEMPLATES_FOLDER)
 
 @app.get("/", response_class=HTMLResponse)
-async def home():
+async def home(request: Request, success: str = "", filename: str = ""):
     """
-    Serve the homepage.
+    Serve homepage with optional success message.
     """
-    return templates.TemplateResponse("index.html", {"request": {}})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "success": success,
+        "filename": filename
+    })
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
     """
-    Handle PDF file upload and convert it to Excel.
+    Handle PDF upload and convert to Excel.
     """
-    # Save the uploaded file
+    if not file.filename.endswith(".pdf"):
+        return {"error": "Only PDF files are allowed."}
+
     file_path = UPLOAD_FOLDER / file.filename
     with file_path.open("wb") as f:
         f.write(await file.read())
 
-    # Generate the Excel file
-    output_filename = f"{file.filename.rsplit('.', 1)[0]}.xlsx"  # Remove .pdf extension
+    output_filename = f"{file.filename.rsplit('.', 1)[0]}.xlsx"
     output_excel = OUTPUT_FOLDER / output_filename
+
     process_pdf_to_excel(file_path, output_excel)
 
-    # Return the download URL
-    return {"download_url": f"/download/{output_excel.name}"}
+    return RedirectResponse(url=f"/?success=1&filename={output_filename}", status_code=303)
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
@@ -52,7 +55,16 @@ async def download_file(filename: str):
     Serve the generated Excel file.
     """
     file_path = OUTPUT_FOLDER / filename
-    print(file_path)
     if file_path.exists():
-        return FileResponse(file_path, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        headers = {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+        return FileResponse(
+            path=file_path,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename=filename,
+            headers=headers
+        )
     return {"error": "File not found"}
