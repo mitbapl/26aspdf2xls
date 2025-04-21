@@ -1,48 +1,57 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
+from pathlib import Path
 from .utils import process_pdf_to_excel
 import os
 
-print("Current Working Directory:", os.getcwd())
-
+# Initialize FastAPI app
 app = FastAPI()
 
-# Directories for uploads and outputs
-UPLOAD_FOLDER = "uploaded_files"
-OUTPUT_FOLDER = "output_files"
+# Set directories for uploads and outputs
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_FOLDER = BASE_DIR / "uploaded_files"
+OUTPUT_FOLDER = BASE_DIR / "output_files"
+TEMPLATES_FOLDER = BASE_DIR / "templates"
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+# Ensure directories exist
+UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Set up templates
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory=TEMPLATES_FOLDER)
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    """Serve the homepage."""
+    """
+    Serve the homepage.
+    """
     return templates.TemplateResponse("index.html", {"request": {}})
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
-    """Handle file upload and processing."""
-    # Save uploaded file
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    with open(file_path, "wb") as f:
+    """
+    Handle PDF file upload and convert it to Excel.
+    """
+    # Save the uploaded file
+    file_path = UPLOAD_FOLDER / file.filename
+    with file_path.open("wb") as f:
         f.write(await file.read())
 
-    # Process PDF and generate Excel
-    # output_excel = os.path.join(OUTPUT_FOLDER, f"{file.filename}.xlsx")
-    output_excel = os.path.join(OUTPUT_FOLDER, f"{os.path.splitext(file.filename)[0]}.xlsx")
-
+    # Generate the Excel file
+    output_filename = f"{file.filename.rsplit('.', 1)[0]}.xlsx"  # Remove .pdf extension
+    output_excel = OUTPUT_FOLDER / output_filename
     process_pdf_to_excel(file_path, output_excel)
 
-    return {"download_url": f"/download/{os.path.basename(output_excel)}"}
+    # Return the download URL
+    return {"download_url": f"/download/{output_excel.name}"}
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
-    """Serve the generated Excel file."""
-    file_path = os.path.join(OUTPUT_FOLDER, filename)
-    if os.path.exists(file_path):
+    """
+    Serve the generated Excel file.
+    """
+    file_path = OUTPUT_FOLDER / filename
+    if file_path.exists():
         return FileResponse(file_path, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     return {"error": "File not found"}
