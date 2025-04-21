@@ -3,7 +3,6 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from .utils import process_pdf_to_excel
-import os
 
 app = FastAPI()
 
@@ -30,6 +29,13 @@ async def home(request: Request, success: str = "", filename: str = ""):
         "filename": filename
     })
 
+@app.head("/")
+async def head_home():
+    """
+    Handle HEAD request to root and return 200 OK
+    """
+    return HTMLResponse(status_code=200)
+
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
     """
@@ -47,7 +53,7 @@ async def upload_file(file: UploadFile):
 
     process_pdf_to_excel(file_path, output_excel)
 
-    return RedirectResponse(url=f"/?success=1&filename={output_filename}", status_code=303)
+    return {"download_url": f"/download/{output_filename}"}
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
