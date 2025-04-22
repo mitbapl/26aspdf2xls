@@ -4,60 +4,40 @@ import pandas as pd
 from PyPDF2 import PdfReader
 
 def extract_tds_entries_from_pdf(pdf_path):
-    from PyPDF2 import PdfReader
-
     reader = PdfReader(str(pdf_path))
     text = "\n".join([page.extract_text() or "" for page in reader.pages])
+    lines = text.splitlines()
 
-    # Dump first 1000 characters of raw text
-    print("\n=== PDF Extract Preview ===")
-    print(text[:1000])
-    print("=== END ===\n")
-    reader = PdfReader(str(pdf_path))
-    text = "\n".join([page.extract_text() or "" for page in reader.pages])
-
-    # 1. Extract Deductor Blocks
-    deductor_pattern = re.compile(
-        r"(?P<deductor>[A-Z0-9\s\.\-&()]+?)\s+(?P<tan>[A-Z]{4}\d{5}[A-Z])\s+(?P<amount_paid>-?\d[\d,]*\.\d{2})\s+(?P<tds_deducted>-?\d[\d,]*\.\d{2})\s+(?P<tds_deposited>-?\d[\d,]*\.\d{2})"
-    )
-    deductors = deductor_pattern.findall(text)
-
-    # 2. Extract Transaction Rows (need to assign to the most recent deductor)
-    txn_pattern = re.compile(
-        r"(?P<section>194[A-Z]*)\s+(?P<date>\d{2}-[A-Za-z]{3}-\d{4})\s+[FMPUGZ]\s+\d{2}-[A-Za-z]{3}-\d{4}\s+-?\s*(?P<amount>-?\d[\d,]*\.\d{2})\s+(?P<tds>-?\d[\d,]*\.\d{2})\s+(?P<deposited>-?\d[\d,]*\.\d{2})"
-    )
-    transactions = txn_pattern.findall(text)
-
-    # 3. Stitch Together
     results = []
     current_deductor = None
     current_tan = None
 
-    # Walk through lines to align deductors + transactions properly
-    lines = text.splitlines()
-    for i in range(len(lines)):
-        # Match deductor block in-line
-        match = deductor_pattern.match(lines[i])
+    for i, line in enumerate(lines):
+        # Deductor + TAN + amounts (example: MUMR33583E 109367.00 5468.35 5468.35)
+        match = re.search(r"([A-Z]{4}\d{5}[A-Z])\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})", line)
         if match:
-            current_deductor = match.group('deductor').strip()
-            current_tan = match.group('tan').strip()
+            current_tan = match.group(1)
+            current_deductor = re.sub(rf"{current_tan}.*", "", line).strip("1234567890.- ").strip()
             continue
 
-        # Match transaction lines
-        txn_match = txn_pattern.match(lines[i])
+        # Transaction rows (example: 194H 23-Aug-2024 F 09-Nov-2024 - 53607.00 2680.35 2680.35)
+        txn_match = re.match(
+            r"(194[A-Z]?)\s+(\d{2}-[A-Za-z]{3}-\d{4})\s+[FMPUGZ]\s+\d{2}-[A-Za-z]{3}-\d{4}\s+-?\s*(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})",
+            line
+        )
         if txn_match and current_deductor and current_tan:
             try:
                 results.append({
                     "Deductor": current_deductor,
                     "TAN": current_tan,
-                    "Section": txn_match.group('section'),
-                    "Transaction Date": txn_match.group('date'),
-                    "Amount Paid": float(txn_match.group('amount').replace(',', '')),
-                    "TDS Deducted": float(txn_match.group('tds').replace(',', '')),
-                    "TDS Deposited": float(txn_match.group('deposited').replace(',', '')),
+                    "Section": txn_match.group(1),
+                    "Transaction Date": txn_match.group(2),
+                    "Amount Paid": float(txn_match.group(3).replace(',', '')),
+                    "TDS Deducted": float(txn_match.group(4).replace(',', '')),
+                    "TDS Deposited": float(txn_match.group(5).replace(',', '')),
                 })
             except Exception as e:
-                print(f"Skipping row due to error: {e}")
+                print(f"Error parsing transaction: {e}")
                 continue
 
     return results
