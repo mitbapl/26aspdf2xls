@@ -4,6 +4,15 @@ import pandas as pd
 from PyPDF2 import PdfReader
 
 def extract_tds_entries_from_pdf(pdf_path):
+    from PyPDF2 import PdfReader
+
+    reader = PdfReader(str(pdf_path))
+    text = "\n".join([page.extract_text() or "" for page in reader.pages])
+
+    # Dump first 1000 characters of raw text
+    print("\n=== PDF Extract Preview ===")
+    print(text[:1000])
+    print("=== END ===\n")
     reader = PdfReader(str(pdf_path))
     text = "\n".join([page.extract_text() or "" for page in reader.pages])
 
