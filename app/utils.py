@@ -8,26 +8,29 @@ def extract_tds_entries_from_pdf(pdf_path):
     text = "\n".join([page.extract_text() or "" for page in reader.pages])
     lines = text.splitlines()
 
-    results = []
+    entries = []
     current_deductor = None
     current_tan = None
 
     for i, line in enumerate(lines):
-        # Deductor + TAN + amounts (example: MUMR33583E 109367.00 5468.35 5468.35)
-        match = re.search(r"([A-Z]{4}\d{5}[A-Z])\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})", line)
-        if match:
-            current_tan = match.group(1)
-            current_deductor = re.sub(rf"{current_tan}.*", "", line).strip("1234567890.- ").strip()
-            continue
+        line = line.strip()
 
-        # Transaction rows (example: 194H 23-Aug-2024 F 09-Nov-2024 - 53607.00 2680.35 2680.35)
+        # Match Deductor Summary (e.g., RULOANS... MUMR33583E 109367.00 5468.35 5468.35)
+        if re.search(r"[A-Z]{4}\d{5}[A-Z]\s+\d+\.\d{2}\s+\d+\.\d{2}\s+\d+\.\d{2}", line):
+            match = re.search(r"(.+?)\s+([A-Z]{4}\d{5}[A-Z])\s+(\d+[.,]?\d*)\s+(\d+[.,]?\d*)\s+(\d+[.,]?\d*)", line)
+            if match:
+                current_deductor = match.group(1).strip()
+                current_tan = match.group(2).strip()
+
+        # Match Transaction Detail (e.g., 194H 23-Aug-2024 F 09-Nov-2024 - 53607.00 2680.35 2680.35)
         txn_match = re.match(
             r"(194[A-Z]?)\s+(\d{2}-[A-Za-z]{3}-\d{4})\s+[FMPUGZ]\s+\d{2}-[A-Za-z]{3}-\d{4}\s+-?\s*(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})",
             line
         )
+
         if txn_match and current_deductor and current_tan:
             try:
-                results.append({
+                entries.append({
                     "Deductor": current_deductor,
                     "TAN": current_tan,
                     "Section": txn_match.group(1),
@@ -37,10 +40,10 @@ def extract_tds_entries_from_pdf(pdf_path):
                     "TDS Deposited": float(txn_match.group(5).replace(',', '')),
                 })
             except Exception as e:
-                print(f"Error parsing transaction: {e}")
+                print(f"Skipping line {i} due to error: {e}")
                 continue
 
-    return results
+    return entries
 
 def convert_to_excel(records, output_excel_path):
     df = pd.DataFrame(records)
